@@ -1,5 +1,6 @@
 package ba.unsa.etf.rpr;
 
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -8,11 +9,18 @@ import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.TextField;
 import javafx.stage.Stage;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 public class GradController {
     public TextField fieldNaziv;
     public TextField fieldBrojStanovnika;
+    public TextField fieldPostanskiBroj;
     public ChoiceBox<Drzava> choiceDrzava;
     public ObservableList<Drzava> listDrzave;
     private Grad grad;
@@ -28,6 +36,7 @@ public class GradController {
         if (grad != null) {
             fieldNaziv.setText(grad.getNaziv());
             fieldBrojStanovnika.setText(Integer.toString(grad.getBrojStanovnika()));
+            fieldPostanskiBroj.setText(Integer.toString(grad.getPostanskiBroj()));
             // choiceDrzava.getSelectionModel().select(grad.getDrzava());
             // ovo ne radi jer grad.getDrzava() nije identički jednak objekat kao član listDrzave
             for (Drzava drzava : listDrzave)
@@ -78,11 +87,44 @@ public class GradController {
 
         if (!sveOk) return;
 
-        if (grad == null) grad = new Grad();
-        grad.setNaziv(fieldNaziv.getText());
-        grad.setBrojStanovnika(Integer.parseInt(fieldBrojStanovnika.getText()));
-        grad.setDrzava(choiceDrzava.getValue());
-        Stage stage = (Stage) fieldNaziv.getScene().getWindow();
-        stage.close();
+
+
+        Thread thread = new Thread(() -> {
+            int postBroj = Integer.parseInt(fieldPostanskiBroj.getText());
+            try {
+                URL provjera = new URL("http://c9.etf.unsa.ba/proba/postanskiBroj.php?postanskiBroj="+postBroj);
+
+                BufferedReader in = new BufferedReader(new InputStreamReader(provjera.openStream(), StandardCharsets.UTF_8));
+                String rez = "", line = null;
+                while ((line = in.readLine()) != null)
+                    rez = rez + line;
+                in.close();
+                if(rez.equals("OK")) {
+                    fieldPostanskiBroj.getStyleClass().removeAll("poljeNijeIspravno");
+                    fieldPostanskiBroj.getStyleClass().add("poljeIspravno");
+                } else if(rez.equals("NOT OK")){
+                    fieldPostanskiBroj.getStyleClass().removeAll("poljeIspravno");
+                    fieldPostanskiBroj.getStyleClass().add("poljeNijeIspravno");
+
+                    Platform.runLater(() -> {
+                        if (grad == null) grad = new Grad();
+                        grad.setNaziv(fieldNaziv.getText());
+                        grad.setBrojStanovnika(Integer.parseInt(fieldBrojStanovnika.getText()));
+                        grad.setDrzava(choiceDrzava.getValue());
+                        grad.setPostanskiBroj(postBroj);
+                        Stage stage = (Stage) fieldNaziv.getScene().getWindow();
+                        stage.close();
+                    });
+                }
+            } catch (MalformedURLException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+
+        thread.start();
     }
+
+
 }

@@ -5,10 +5,19 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ChoiceBox;
+import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
 import javafx.stage.Stage;
 
+
+import javax.swing.text.html.ImageView;
+import java.awt.*;
+import java.awt.event.MouseEvent;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -17,6 +26,8 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
+import static javafx.scene.control.PopupControl.USE_COMPUTED_SIZE;
+
 public class GradController {
     public TextField fieldNaziv;
     public TextField fieldBrojStanovnika;
@@ -24,10 +35,17 @@ public class GradController {
     public ChoiceBox<Drzava> choiceDrzava;
     public ObservableList<Drzava> listDrzave;
     private Grad grad;
+    private ObservableList<Znamenitost> ListaZnamenitosti;
+    private GeografijaDAO geografija_dao;
+    public ListView<Znamenitost> listViewZnamenitosti;
+
 
     public GradController(Grad grad, ArrayList<Drzava> drzave) {
         this.grad = grad;
         listDrzave = FXCollections.observableArrayList(drzave);
+        if (grad != null) ListaZnamenitosti = FXCollections.observableArrayList(grad.getZnamenitost());
+        else ListaZnamenitosti = FXCollections.observableArrayList();
+        geografija_dao = GeografijaDAO.getInstance();
     }
 
     @FXML
@@ -37,6 +55,7 @@ public class GradController {
             fieldNaziv.setText(grad.getNaziv());
             fieldBrojStanovnika.setText(Integer.toString(grad.getBrojStanovnika()));
             fieldPostanskiBroj.setText(Integer.toString(grad.getPostanskiBroj()));
+
             // choiceDrzava.getSelectionModel().select(grad.getDrzava());
             // ovo ne radi jer grad.getDrzava() nije identički jednak objekat kao član listDrzave
             for (Drzava drzava : listDrzave)
@@ -45,6 +64,7 @@ public class GradController {
         } else {
             choiceDrzava.getSelectionModel().selectFirst();
         }
+        listViewZnamenitosti.setItems(ListaZnamenitosti);
     }
 
     public Grad getGrad() {
@@ -94,11 +114,11 @@ public class GradController {
             try {
                 URL provjera = new URL("http://c9.etf.unsa.ba/proba/postanskiBroj.php?postanskiBroj="+postBroj);
 
-                BufferedReader in = new BufferedReader(new InputStreamReader(provjera.openStream(), StandardCharsets.UTF_8));
+                BufferedReader buffer = new BufferedReader(new InputStreamReader(provjera.openStream(), StandardCharsets.UTF_8));
                 String rez = "", line = null;
-                while ((line = in.readLine()) != null)
+                while ((line = buffer.readLine()) != null)
                     rez = rez + line;
-                in.close();
+                buffer.close();
                 if(rez.equals("OK")) {
                     fieldPostanskiBroj.getStyleClass().removeAll("poljeNijeIspravno");
                     fieldPostanskiBroj.getStyleClass().add("poljeIspravno");
@@ -125,6 +145,37 @@ public class GradController {
 
         thread.start();
     }
+
+    public void clickDodajZnamenitost(ActionEvent actionEvent) {
+        Stage stage = new Stage();
+        Parent root = null;
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/znamenitost.fxml"));
+            ZnamenitostController znamenitostiController = new ZnamenitostController(grad);
+            loader.setController(znamenitostiController);
+            root = loader.load();
+            stage.setTitle("Znamenitosti");
+            stage.setScene(new Scene(root, USE_COMPUTED_SIZE, USE_COMPUTED_SIZE));
+            stage.setResizable(true);
+            stage.show();
+
+            stage.setOnHiding( event -> {
+                Znamenitost znamenitost = znamenitostiController.getZnanemitost();
+                if (znamenitost != null) {
+                    geografija_dao.dodajZnamenitost(znamenitost);
+                    grad.getZnamenitost().add(znamenitost);
+                    ListaZnamenitosti.setAll(grad.getZnamenitost());
+                    listViewZnamenitosti.refresh();
+                }
+            } );
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+
+
 
 
 }
